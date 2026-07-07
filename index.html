@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>약물 상호작용 검토</title>
+<style>
+:root{
+  --bg:#f7f6f3; --surface:#ffffff; --ink:#23211c; --muted:#6b6860;
+  --line:#e2ddd3; --line2:#cfc8ba;
+  --red:#a3372d; --red-bg:#f8ebe9; --red-line:#e3c4bf;
+  --contra:#7a1f18; --contra-bg:#f3e0dd;
+  --yellow:#8a6411; --yellow-bg:#f8f1df; --yellow-line:#e6d6ab;
+  --info:#3a5a78; --info-bg:#eaf0f5; --info-line:#c6d6e3;
+  --accent:#2f5d50; --accent-bg:#e6efea; --accent-line:#bcd4cb;
+  --purple:#5b4b8a; --purple-bg:#efecf7;
+  --font:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic','맑은 고딕',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.6;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 20px 90px}
+header{border-bottom:2px solid var(--accent);padding-bottom:14px;margin-bottom:18px}
+h1{font-size:23px;font-weight:700;letter-spacing:-0.02em;color:var(--accent)}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.disc{background:var(--accent-bg);border:1px solid var(--accent-line);border-radius:8px;padding:10px 14px;font-size:12.5px;color:#43514c;margin-bottom:20px;line-height:1.55}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+.panel h2{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.panel h2 .tag{font-size:11px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:1px 9px}
+
+/* 입력 */
+.inputrow{position:relative}
+.inputrow input{width:100%;padding:13px 14px;font-size:16px;font-family:var(--font);border:1.5px solid var(--line2);border-radius:9px;background:#fff;color:var(--ink)}
+.inputrow input:focus{outline:none;border-color:var(--accent)}
+.ac{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line2);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:30;max-height:320px;overflow-y:auto;display:none}
+.ac.open{display:block}
+.ac .item{padding:9px 13px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--bg);font-size:14px}
+.ac .item:last-child{border-bottom:none}
+.ac .item:hover,.ac .item.sel{background:var(--accent-bg)}
+.ac .item .en{color:var(--muted);font-size:12px;font-style:italic}
+/* OCR */
+.ocr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+.ocr-btn{display:inline-flex;align-items:center;gap:8px;cursor:pointer;background:var(--info-bg);border:1.5px solid var(--info-line);color:var(--info);border-radius:9px;padding:10px 16px;font-size:14px;font-weight:600}
+.ocr-btn:hover{background:#dfe9f1}
+.ocr-btn span{font-size:11.5px;font-weight:400;color:var(--muted)}
+.ocr-hint{font-size:12px;color:var(--muted)}
+.ocrbox{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--bg)}
+.ocr-status{font-size:13px;color:var(--info);font-weight:600;margin-bottom:8px}
+.ocr-thumb{max-width:180px;max-height:140px;border-radius:8px;border:1px solid var(--line2);margin-bottom:10px;display:block}
+.ocr-cands{display:flex;flex-wrap:wrap;gap:8px}
+.ocr-cand{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--accent-line);border-radius:20px;padding:6px 12px;font-size:13.5px;cursor:pointer}
+.ocr-cand:hover{background:var(--accent-bg)}
+.ocr-cand.added{opacity:.5;text-decoration:line-through}
+.ocr-cand .plus{font-weight:700;color:var(--accent)}
+.ocr-raw-wrap{margin-top:12px}
+.ocr-raw{width:100%;font-family:var(--font);font-size:13px;border:1px solid var(--line2);border-radius:8px;padding:8px;margin-top:4px;resize:vertical}
+.btn.small{padding:7px 14px;font-size:13px;margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;min-height:8px}
+.chip{display:inline-flex;align-items:center;gap:7px;background:var(--accent-bg);border:1px solid var(--accent-line);color:#2b473f;border-radius:22px;padding:5px 8px 5px 13px;font-size:13.5px;font-weight:500}
+.chip.miss{background:var(--red-bg);border-color:var(--red-line);color:var(--red)}
+.chip .en{font-size:11px;color:var(--muted);font-style:italic;font-weight:400}
+.chip .fz{font-size:10px;color:var(--yellow);border:1px solid var(--yellow-line);border-radius:10px;padding:0 5px}
+.chip button{border:none;background:none;cursor:pointer;color:inherit;font-size:16px;line-height:1;opacity:.55;padding:0 2px}
+.chip button:hover{opacity:1}
+.ctxrow{margin-top:14px}
+.ctxbox{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;color:#3f3d37;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 14px;cursor:pointer}
+.ctxbox input{width:17px;height:17px;accent-color:var(--accent);cursor:pointer}
+.ctxbox b{color:var(--ink)}
+.eldcard{border:1px solid var(--yellow-line);border-radius:10px;padding:12px 16px;margin-bottom:10px;background:var(--yellow-bg);font-size:13.5px;line-height:1.55;color:#5f4a12}
+.eldcard .who{font-weight:700;color:#7a5a10}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.btn{padding:11px 22px;font-size:14.5px;font-weight:600;font-family:var(--font);border-radius:9px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+.btn:hover{background:#264c42}
+.btn.ghost{background:#fff;color:var(--accent)}
+.btn.ghost:hover{background:var(--accent-bg)}
+.examples{font-size:12.5px;color:var(--muted);margin-top:12px}
+.examples b{color:var(--ink);font-weight:600}
+.examples a{color:var(--accent);cursor:pointer;text-decoration:none;border-bottom:1px dotted var(--accent-line);margin:0 2px}
+
+/* 요약 */
+.summary{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+.stat{flex:1;min-width:120px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
+.stat .n{font-size:24px;font-weight:700;line-height:1}
+.stat .l{font-size:11.5px;color:var(--muted);margin-top:4px}
+.stat.contra{background:var(--contra-bg);border-color:#e0c3bf}
+.stat.contra .n{color:var(--contra)}
+.stat.high{background:var(--red-bg);border-color:var(--red-line)}
+.stat.high .n{color:var(--red)}
+.stat.mod{background:var(--yellow-bg);border-color:var(--yellow-line)}
+.stat.mod .n{color:var(--yellow)}
+.stat.acb .n{color:var(--purple)}
+
+.warn{background:var(--yellow-bg);border:1px solid var(--yellow-line);color:#6f5210;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+
+/* 결과 카드 */
+.pair{border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:hidden;background:#fff}
+.pair .head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pair .head .names{font-weight:700;font-size:15.5px}
+.pair .head .names .x{color:var(--muted);font-weight:400;margin:0 6px}
+.pair.contra{border-color:#dcbdb8}
+.pair.contra .head{background:var(--contra-bg)}
+.pair.high .head{background:var(--red-bg)}
+.pair.moderate .head{background:var(--yellow-bg)}
+.pair.low .head{background:var(--info-bg)}
+.finding{padding:12px 16px;border-bottom:1px dashed var(--line)}
+.finding:last-child{border-bottom:none}
+.finding .ftitle{font-weight:600;font-size:14px;margin-bottom:5px;display:flex;gap:7px;align-items:flex-start;flex-wrap:wrap}
+.finding .fdetail{font-size:13.5px;color:#3f3d37;line-height:1.55}
+.finding .fdetail b{color:var(--ink)}
+.snippet{margin-top:8px;background:var(--bg);border-left:3px solid var(--line2);border-radius:0 6px 6px 0;padding:8px 12px;font-size:12.5px;color:#54514a;line-height:1.5}
+.snippet .lbl{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.03em;display:block;margin-bottom:2px}
+.ptbox{margin-top:8px;background:var(--info-bg);border:1px solid var(--info-line);border-radius:6px;padding:8px 12px;font-size:13px;color:#2e4658;line-height:1.55}
+.ptbox .lbl{font-size:10.5px;font-weight:700;color:var(--info);letter-spacing:.03em;display:inline-block;margin-right:6px}
+.ptbox b{color:#1c3547}
+.infocard{border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:10px;background:#fff;font-size:13.5px;line-height:1.55}
+.infocard .who{font-weight:700;color:var(--accent)}
+.infocard .gene{display:inline-block;font-weight:700;color:var(--purple);background:var(--purple-bg);border-radius:5px;padding:1px 8px;margin-right:6px;font-size:12px}
+.refs{margin-top:7px;font-size:11.5px;color:var(--muted)}
+.refs span{background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:1px 9px;margin-right:5px;display:inline-block;margin-top:3px}
+
+/* 배지 */
+.badge{font-size:11px;font-weight:700;border-radius:5px;padding:2px 8px;white-space:nowrap;letter-spacing:.01em}
+.b-sev-contra{background:var(--contra);color:#fff}
+.b-sev-high{background:var(--red);color:#fff}
+.b-sev-moderate{background:var(--yellow);color:#fff}
+.b-sev-low{background:var(--info);color:#fff}
+.b-layer{background:#fff;border:1px solid currentColor}
+.lay-병용금기{color:var(--contra)}
+.lay-설명서{color:var(--accent)}
+.lay-효능군중복{color:var(--purple)}
+.lay-CYP대사{color:var(--info)}
+.lay-약력학{color:#8a5a11}
+.b-conf-확실{background:var(--accent);color:#fff}
+.b-conf-추정{background:#fff;color:var(--muted);border:1px dashed var(--line2)}
+
+.section-title{font-size:16px;font-weight:700;color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.empty{color:var(--muted);font-size:13.5px;padding:8px 2px}
+.legend{font-size:12px;color:var(--muted);line-height:1.7}
+.legend b{color:var(--ink)}
+.legend .badge{margin-right:4px}
+footer{margin-top:30px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.6}
+@media(max-width:640px){
+  .wrap{padding:16px 13px 70px}
+  h1{font-size:20px}
+  .stat{min-width:calc(50% - 5px)}
+  .btn{flex:1;min-width:130px;text-align:center}
+  .ocr-btn{width:100%;justify-content:center}
+  .pair .head .names{font-size:14.5px}
+  .ac{max-height:50vh}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>약물 상호작용 검토</h1>
+    <div class="sub">허가사항 설명서 · 식약처 DUR · CYP 대사 · 약력학 기반 다층 상호작용 예측 &nbsp;·&nbsp; <span id="ver"></span>
+      &nbsp;·&nbsp; <a href="about_interactions.html" style="color:var(--accent)">데이터 출처·근거 ↗</a></div>
+  </header>
+
+  <div class="disc">
+    본 도구는 약사의 임상 판단을 <b>보조</b>하는 초안 생성 도구입니다. 상호작용의 실제 임상적 유의성은 용량·투여경로·시간간격·환자 상태(신·간기능, 유전형 등)에 따라 달라지므로
+    모든 결과는 약사가 원 설명서·DUR 고시·최신 문헌으로 직접 확인·판단해야 합니다. 「추정」 등급은 기전·약효군 기반 예측으로 위양성이 있을 수 있으며, 미표시가 안전을 보장하지 않습니다.
+  </div>
+
+  <div class="panel">
+    <h2>약물 입력 <span class="tag">성분명 · 제품명 · 영문 모두 검색</span></h2>
+    <div class="inputrow">
+      <input id="drug" type="text" inputmode="text" autocomplete="off" placeholder="약 이름을 입력하세요 (예: 와파린, 심바스타틴, 타이레놀, warfarin)">
+      <div class="ac" id="ac"></div>
+    </div>
+
+    <div class="ocr">
+      <label class="ocr-btn" for="ocrfile">📷 사진으로 입력 <span>약봉투·처방전 촬영/업로드</span></label>
+      <input id="ocrfile" type="file" accept="image/*" capture="environment" hidden>
+      <span class="ocr-hint">인식 결과는 아래에서 직접 확인·수정할 수 있습니다.</span>
+    </div>
+    <div id="ocrbox" class="ocrbox" style="display:none">
+      <div class="ocr-status" id="ocrstatus"></div>
+      <img id="ocrthumb" class="ocr-thumb" alt="" style="display:none">
+      <div id="ocrcands" class="ocr-cands"></div>
+      <div class="ocr-raw-wrap" id="ocrrawwrap" style="display:none">
+        <label style="font-size:12px;color:var(--muted);font-weight:600">인식된 원문 (직접 수정 후 "이 텍스트에서 약 찾기")</label>
+        <textarea id="ocrraw" class="ocr-raw" rows="4"></textarea>
+        <button class="btn ghost small" id="ocrrescan">이 텍스트에서 약 찾기</button>
+      </div>
+    </div>
+
+    <div class="chips" id="chips"></div>
+    <div class="ctxrow">
+      <label class="ctxbox"><input type="checkbox" id="ctxElderly"> 고령 환자 <b>(65세 이상)</b> — 체크 시 각 약의 <b>DUR 노인주의</b> 반영</label>
+    </div>
+    <div class="controls">
+      <button class="btn" id="run">상호작용 검토하기</button>
+      <button class="btn ghost" id="clear">전체 지우기</button>
+    </div>
+    <div class="examples">
+      <b>예시:</b>
+      <a data-ex="와파린,아스피린,이부프로펜">와파린+아스피린+이부프로펜</a>·
+      <a data-ex="심바스타틴,이트라코나졸">심바스타틴+이트라코나졸</a>·
+      <a data-ex="클로피도그렐,오메프라졸">클로피도그렐+오메프라졸</a>·
+      <a data-ex="디곡신,아미오다론,푸로세미드">디곡신+아미오다론+푸로세미드</a>·
+      <a data-ex="트라마돌,설트랄린,졸피뎀">트라마돌+설트랄린+졸피뎀</a>
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="panel" id="legendPanel" style="display:none">
+    <h2>범례</h2>
+    <div class="legend">
+      <p><b>레이어</b> —
+        <span class="badge b-layer lay-병용금기">병용금기</span> 식약처 공식 병용금기 ·
+        <span class="badge b-layer lay-설명서">설명서</span> 허가사항 상호작용 본문 ·
+        <span class="badge b-layer lay-효능군중복">효능군중복</span> 동일효능군 중복 ·
+        <span class="badge b-layer lay-CYP대사">CYP대사</span> 대사효소 기전 예측 ·
+        <span class="badge b-layer lay-약력학">약력학</span> 부작용·작용 상가
+      </p>
+      <p style="margin-top:6px"><b>신뢰도</b> —
+        <span class="badge b-conf-확실">확실</span> 성분명 직접 일치 또는 공식 고시 ·
+        <span class="badge b-conf-추정">추정</span> 약효군·기전 기반 확장 예측(위양성 가능)
+      </p>
+      <p style="margin-top:6px"><b>위험도</b> —
+        <span class="badge b-sev-contra">병용금기</span>
+        <span class="badge b-sev-high">고위험</span>
+        <span class="badge b-sev-moderate">중등도</span>
+        <span class="badge b-sev-low">낮음/정보</span>
+      </p>
+    </div>
+  </div>
+
+  <footer>
+    데이터: 식약처 DUR 병용금기·효능군중복 고시 · 의약품안전나라 e약은요(허가사항) · KB(CYP·ACB·속성) · Beers 2023 · STOPP/START v3<br>
+    ※ 설명서 상호작용은 e약은요 등재 품목(주로 단일성분) 범위에서 매칭되며, 전문의약품 전체 허가사항을 포괄하지 않습니다.
+  </footer>
+</div>
+
+<script src="_data/drug_interaction_data.js"></script>
+<script>
+/* 약물 상호작용 검토 엔진 — window.IXDATA(=D) 소비.
+   reviewInteractions(inputs) → {resolved, pairs, global, acb}
+   5개 레이어: ①병용금기 ②설명서 ③효능군중복 ④CYP대사 ⑤약력학 */
+(function (global) {
+  'use strict';
+  var D = null;
+  function setData(d) { D = d; }
+
+  // ── 유틸 ──
+  function normKey(s) {
+    return (s || '').toString().trim().toLowerCase();
+  }
+  function normEn(s) {
+    // build 스크립트 norm_en 경량 재현(자동완성 결과가 이미 정규화라 보조용)
+    if (!s) return '';
+    s = s.toString().trim().toLowerCase().split('/')[0].split('·')[0].trim();
+    s = s.replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9\s]/g, ' ');
+    return s.replace(/\s+/g, ' ').trim();
+  }
+  function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
+  function pairKey(a, b) { return [a, b].sort().join('|'); }
+
+  // 입력 문자열 → {input, en, ko, ok, fuzzy}
+  function resolve(input) {
+    var key = normKey(input);
+    var en = D.name2en[key], fuzzy = false;
+    if (!en) { en = D.name2en[normEn(input)]; }
+    if (!en) {
+      var ne = normEn(input);
+      if (D.cyp_roles[ne] || D.attr[ne] || D.dup[ne] || D.label[ne]) en = ne;
+    }
+    if (!en && key.length >= 2) {
+      // 부분일치 폴백: 입력을 포함하는 키들에서 다수결 en
+      var tally = {};
+      for (var k in D.name2en) {
+        if (k.indexOf(key) >= 0) {
+          var e = D.name2en[k];
+          tally[e] = (tally[e] || 0) + 1;
+        }
+      }
+      var best = null, bn = 0;
+      for (var e2 in tally) { if (tally[e2] > bn) { bn = tally[e2]; best = e2; } }
+      if (best) { en = best; fuzzy = true; }
+    }
+    var ko = en ? (D.en2ko[en] || '') : '';
+    return { input: input, en: en || null, ko: ko, ok: !!en, fuzzy: fuzzy };
+  }
+
+  function mkDrug(en, via, fuzzy) {
+    return { input: via || en, en: en, ko: D.en2ko[en] || '', ok: !!en, fuzzy: !!fuzzy, via: via && via !== en ? via : null };
+  }
+  function koListLabel(ens) {
+    return ens.map(function (en) { return D.en2ko[en] || en; }).join(' + ');
+  }
+  // 복합제 부분일치: 입력을 포함하는 name2multi 키 중 가장 짧은(구체적) 것
+  function fuzzyMulti(key) {
+    var best = null;
+    for (var k in D.name2multi) {
+      if (k.indexOf(key) >= 0 && (!best || k.length < best.length)) best = k;
+    }
+    return best ? { name: best, ens: D.name2multi[best] } : null;
+  }
+  // 입력 1건 → 약물객체 배열(복합제는 성분별 분해). ok=false면 [미매칭객체]
+  function expandInput(input) {
+    var key = normKey(input);
+    var multi = D.name2multi[key];
+    if (multi && multi.length) return multi.map(function (en) { return mkDrug(en, input, false); });
+    var single = resolve(input);
+    if (single.ok) return [single];
+    var fm = fuzzyMulti(key);
+    if (fm) return fm.ens.map(function (en) { return mkDrug(en, input, true); });
+    return [single]; // 미매칭
+  }
+
+  // 자동완성 후보 (UI용) — 부분일치 상위 N (단일+복합제)
+  function suggest(q, limit) {
+    q = normKey(q); limit = limit || 12;
+    if (q.length < 1) return [];
+    var pre = [], sub = [], seen = {};
+    function push(item, idx) { (idx === 0 ? pre : sub).push(item); }
+    for (var k in D.name2en) {
+      var idx = k.indexOf(q);
+      if (idx < 0) continue;
+      var en = D.name2en[k];
+      push({ name: k, en: en, ko: D.en2ko[en] || '', combo: false }, idx);
+    }
+    for (var k2 in D.name2multi) {
+      var idx2 = k2.indexOf(q);
+      if (idx2 < 0) continue;
+      var ens = D.name2multi[k2];
+      push({ name: k2, ens: ens, ko: koListLabel(ens), combo: true }, idx2);
+    }
+    pre.sort(function (a, b) { return a.name.length - b.name.length; });
+    sub.sort(function (a, b) { return a.name.length - b.name.length; });
+    var out = [];
+    pre.concat(sub).forEach(function (it) {
+      var sig = it.combo ? 'C:' + it.ens.join(',') : it.en;
+      if (seen[sig]) return;
+      seen[sig] = 1; out.push(it);
+    });
+    return out.slice(0, limit);
+  }
+
+  var SEV_RANK = { contra: 0, high: 1, moderate: 2, low: 3, info: 4 };
+  function sevWeight(s) { return SEV_RANK[s] == null ? 5 : SEV_RANK[s]; }
+
+  function attrsOf(en) { return (en && D.attr[en]) || []; }
+
+  // ── 레이어 ④ CYP ──
+  var STR_W = { strong: 3, moderate: 2, weak: 1 };
+  function enzLabel(e) { return (D.enzyme_label && D.enzyme_label[e]) || e; }
+  function cypPair(A, B) {
+    // A가 B에 미치는 영향(억제/유도) 계산. 양방향 호출.
+    var out = [];
+    var ra = D.cyp_roles[A.en], rb = D.cyp_roles[B.en];
+    if (!ra || !rb) return out;
+    var enzymes = uniq(Object.keys(ra.inh).concat(Object.keys(ra.ind)));
+    enzymes.forEach(function (E) {
+      if (E === 'OATP1B1') return;          // OATP1B1은 별도 페어 수송체 규칙에서 처리(중복 방지)
+      var subImp = rb.sub[E];               // B가 이 효소의 기질인가
+      if (!subImp) return;
+      var inh = ra.inh[E], ind = ra.ind[E];
+      var isProdrug = (B.en === 'clopidogrel' && E === 'CYP2C19');
+      if (inh) {
+        var sev = (STR_W[inh] >= 3 && (rb.sensitive || subImp === 'major')) ? 'high'
+                : (STR_W[inh] >= 2 ? 'moderate' : 'low');
+        var eff = isProdrug
+          ? (A.ko || A.en) + '이(가) ' + enzLabel(E) + '을(를) ' + krStr(inh) + ' 억제 → 전구약물인 ' + (B.ko || B.en) + '의 활성대사체 생성 저하로 <b>약효(항혈소판) 감소</b> 우려'
+          : (A.ko || A.en) + '이(가) ' + enzLabel(E) + '을(를) ' + krStr(inh) + ' 억제 → ' + (B.ko || B.en) + '의 혈중농도 <b>상승</b>(독성 위험' + (rb.sensitive ? ', 좁은 치료역' : '') + ')';
+        out.push({ layer: 'CYP대사', conf: '추정', sev: sev, enzyme: E,
+          title: enzLabel(E) + ' 억제 상호작용', detail: eff,
+          pt: isProdrug ? (B.ko||B.en) + '의 효과가 약해질 수 있습니다. 증상 조절이 잘 되는지 지켜보세요.'
+                        : (B.ko||B.en) + '의 농도가 올라 부작용이 나타날 수 있으니, 새로 시작·중단할 때 이상 증상을 살피세요.',
+          a: A, b: B, refs: ['UpToDate Lexi-Interact', 'FDA labeling'] });
+      }
+      if (ind) {
+        var sev2 = (STR_W[ind] >= 3 ? 'moderate' : 'low');
+        var eff2 = isProdrug
+          ? (A.ko || A.en) + '이(가) ' + enzLabel(E) + '을(를) ' + krStr(ind) + ' 유도 → ' + (B.ko || B.en) + '의 활성대사체 증가 가능'
+          : (A.ko || A.en) + '이(가) ' + enzLabel(E) + '을(를) ' + krStr(ind) + ' 유도 → ' + (B.ko || B.en) + '의 혈중농도 <b>저하</b>(약효 감소 우려)';
+        out.push({ layer: 'CYP대사', conf: '추정', sev: sev2, enzyme: E,
+          title: enzLabel(E) + ' 유도 상호작용', detail: eff2,
+          a: A, b: B, refs: ['UpToDate Lexi-Interact', 'FDA labeling'] });
+      }
+    });
+    return out;
+  }
+  function krStr(s) { return s === 'strong' ? '강력히' : s === 'moderate' ? '중등도로' : '약하게'; }
+
+  // ── 페어(방향성) 속성 상호작용 (킬레이션·pH흡수·OATP1B1·도파민길항·항콜린-ChEI·NSAID-항고혈압) ──
+  function pairAttrFindings(A, B) {
+    var out = [];
+    var aA = attrsOf(A.en), aB = attrsOf(B.en);
+    function has(tags, list) { return tags.some(function (t) { return list.indexOf(t) >= 0; }); }
+    (D.pair_attr_rules || []).forEach(function (r) {
+      function emit(agent, victim) {
+        out.push({ layer: r.layer || '약력학', conf: '추정', sev: r.sev, title: r.label,
+          detail: r.note, pt: r.pt || '', a: agent, b: victim, refs: r.refs || [] });
+      }
+      // A가 원인(a-tag) & B가 피해(b-tag)  /  그 반대  — 각각 독립 평가
+      if (has(r.a, aA) && has(r.b, aB)) emit(A, B);
+      if (has(r.a, aB) && has(r.b, aA)) emit(B, A);
+    });
+    return out;
+  }
+
+  // ── 레이어 ② 설명서 ──
+  function labelMatch(A, B) {
+    // A의 설명서에 B가 언급되는가. 성분 직접 → 확실, 그룹명 → 추정.
+    var out = [];
+    var lab = D.label[A.en];
+    if (!lab || !lab.intrc) return out;
+    var text = lab.intrc;
+    var tl = text.toLowerCase();
+    // 1) 성분명 직접(한글/영문)
+    var direct = false;
+    if (B.ko && B.ko.length >= 2 && text.indexOf(B.ko) >= 0) direct = true;
+    if (!direct && B.en && B.en.length >= 4 && tl.indexOf(B.en) >= 0) direct = true;
+    if (direct) {
+      out.push({ layer: '설명서', conf: '확실', sev: 'moderate',
+        title: (A.ko || A.en) + ' 설명서에 ' + (B.ko || B.en) + ' 직접 명시',
+        detail: '허가사항 상호작용 항목에 상대 약물이 성분명으로 기재됨.',
+        pt: '두 약의 설명서에 함께 주의하라고 안내된 조합입니다. 복용 중 새로운 증상이 생기면 알려주세요.',
+        snippet: extractSnippet(text, B.ko || B.en), a: A, b: B,
+        refs: ['식약처 허가사항(e약은요)', lab.src || ''] });
+      return out; // 직접이면 그룹 추정은 생략(중복 방지)
+    }
+    // 2) 그룹명 → 온톨로지 확장
+    (D.group_ontology || []).forEach(function (g) {
+      var hit = null;
+      for (var i = 0; i < g.patterns.length; i++) {
+        if (tl.indexOf(g.patterns[i]) >= 0) { hit = g.patterns[i]; break; }
+      }
+      if (!hit) return;
+      if (!drugInGroup(B, g)) return;
+      out.push({ layer: '설명서', conf: '추정', sev: 'moderate', group: g.label,
+        title: (A.ko || A.en) + ' 설명서상 「' + g.label + '」에 ' + (B.ko || B.en) + ' 해당 가능',
+        detail: '허가사항 상호작용 항목이 성분명이 아닌 약효군(' + g.label + ')으로 기재되어 있고, ' + (B.ko || B.en) + '이(가) 이 군에 속함.',
+        snippet: extractSnippet(text, hit), a: A, b: B,
+        refs: ['식약처 허가사항(e약은요)', lab.src || ''] });
+    });
+    return out;
+  }
+  function drugInGroup(B, g) {
+    var attrs = attrsOf(B.en);
+    if (g.match_attr && g.match_attr.some(function (t) { return attrs.indexOf(t) >= 0; })) return true;
+    if (g.match_ingr && g.match_ingr.indexOf(B.en) >= 0) return true;
+    if (g.match_group && g.match_group.some(function (gm) {
+      var mem = (D.group_members && D.group_members[gm]) || [];
+      return mem.indexOf(B.en) >= 0;
+    })) return true;
+    if (g.match_cyp) {
+      var r = D.cyp_roles[B.en];
+      if (r && (r.sub[g.match_cyp] || r.inh[g.match_cyp] || r.ind[g.match_cyp])) return true;
+    }
+    return false;
+  }
+  function extractSnippet(text, needle) {
+    var i = text.indexOf(needle);
+    if (i < 0) i = text.toLowerCase().indexOf((needle || '').toLowerCase());
+    if (i < 0) return text.slice(0, 140).trim();
+    var start = Math.max(0, i - 50), end = Math.min(text.length, i + needle.length + 90);
+    return (start > 0 ? '…' : '') + text.slice(start, end).trim().replace(/\s+/g, ' ') + (end < text.length ? '…' : '');
+  }
+
+  // ── 페어 평가 ──
+  function evalPair(A, B) {
+    var f = [];
+    // ① 병용금기
+    var c = D.combo[pairKey(A.en, B.en)];
+    if (c) {
+      f.push({ layer: '병용금기', conf: '확실', sev: 'contra',
+        title: '식약처 병용금기', detail: '병용금기 사유: <b>' + (c.reason || '상호작용') + '</b>. 원칙적으로 병용하지 않음.',
+        pt: '이 두 약은 원칙적으로 <b>함께 복용하지 않습니다</b>. 처방 의사·약사에게 반드시 확인하세요.',
+        a: A, b: B, refs: ['식약처 DUR 병용금기 고시' + (c.date ? ' (' + fmtDate(c.date) + ')' : '')] });
+    }
+    // ③ 효능군 중복
+    var da = D.dup[A.en] || [], db = D.dup[B.en] || [];
+    var shared = da.filter(function (x) { return db.indexOf(x) >= 0; });
+    if (shared.length) {
+      f.push({ layer: '효능군중복', conf: '확실', sev: 'moderate',
+        title: '효능군 중복: ' + shared.join(', '),
+        detail: '동일 효능군(' + shared.join(', ') + ') 약물의 중복 투여. 효과 상가 없이 부작용만 가중될 수 있어 정리 검토.',
+        pt: '같은 종류의 약이 <b>중복</b>되어 있습니다. 중복 복용을 피하고 꼭 필요한지 확인하세요.',
+        a: A, b: B, refs: ['식약처 DUR 효능군중복 고시'] });
+    }
+    // ② 설명서(양방향)
+    f = f.concat(labelMatch(A, B), labelMatch(B, A));
+    // ④ CYP(양방향)
+    f = f.concat(cypPair(A, B), cypPair(B, A));
+    // ⑥ 페어 속성규칙(킬레이션·pH·수송체·상반작용)
+    f = f.concat(pairAttrFindings(A, B));
+    return f;
+  }
+  function fmtDate(d) {
+    if (!d || d.length !== 8) return d;
+    return d.slice(0, 4) + '.' + d.slice(4, 6) + '.' + d.slice(6, 8);
+  }
+
+  // ── 레이어 ⑤ 약력학(전체 집합) ──
+  function evalGlobalPD(drugs) {
+    var found = [];
+    var ok = drugs.filter(function (d) { return d.ok; });
+    (D.pd_rules || []).forEach(function (rule) {
+      var matched = [];
+      if (rule.tag) {
+        // 같은 태그군에서 min_count 이상
+        matched = ok.filter(function (d) {
+          return attrsOf(d.en).some(function (t) { return rule.tag.indexOf(t) >= 0; });
+        });
+        if (matched.length < (rule.min_count || 2)) return;
+      } else if (rule.any_of) {
+        // 각 any_of 그룹에 서로 다른 약을 하나씩 배정(그리디). 모든 그룹 충족 필요.
+        var used = {};
+        rule.any_of.forEach(function (grp) {
+          var hit = ok.find(function (d) {
+            return !used[d.en] && attrsOf(d.en).some(function (t) { return grp.indexOf(t) >= 0; });
+          });
+          if (hit) used[hit.en] = 1;
+        });
+        if (Object.keys(used).length < rule.any_of.length) return;
+        if (Object.keys(used).length < (rule.min_count || 2)) return;
+        // 표시용: 규칙의 어느 그룹에든 해당하는 모든 약
+        matched = ok.filter(function (d) {
+          return rule.any_of.some(function (grp) { return attrsOf(d.en).some(function (t) { return grp.indexOf(t) >= 0; }); });
+        });
+      } else return;
+      found.push({
+        layer: '약력학', conf: '추정', sev: rule.severity,
+        title: rule.label, detail: rule.note, pt: rule.pt || '',
+        drugs: matched.map(function (d) { return d.ko || d.en; }),
+        refs: rule.refs || []
+      });
+    });
+    // 항콜린 부담(ACB) 합산
+    var acbList = ok.map(function (d) { return { name: d.ko || d.en, s: D.acb[d.en] || 0 }; })
+      .filter(function (x) { return x.s > 0; });
+    var acbTotal = acbList.reduce(function (a, x) { return a + x.s; }, 0);
+    if (acbTotal >= 3) {
+      found.push({
+        layer: '약력학', conf: '추정', sev: acbTotal >= 4 ? 'high' : 'moderate',
+        title: '항콜린 부담(ACB) 합계 ' + acbTotal + '점',
+        detail: 'ACB 총점 ≥3은 인지저하·낙상·섬망 위험 증가와 연관(Beers 2023). 기여 약물: ' +
+          acbList.map(function (x) { return x.name + '(' + x.s + ')'; }).join(', '),
+        drugs: acbList.map(function (x) { return x.name; }), refs: ['Beers 2023', 'ACB scale']
+      });
+    }
+    return { pd: found, acbTotal: acbTotal, acbList: acbList };
+  }
+
+  // ── 약물 단위 정보(약물유전형·음식/생활) ──
+  function drugInfo(resolved) {
+    var ok = resolved.filter(function (d) { return d.ok; });
+    var pgx = [], food = [];
+    ok.forEach(function (d) {
+      var g = D.pgx && D.pgx[d.en];
+      if (g) g.forEach(function (x) { pgx.push({ drug: d.ko || d.en, gene: x[0], note: x[1] }); });
+    });
+    (D.food_advisory || []).forEach(function (fa) {
+      var hit = ok.filter(function (d) {
+        if (fa.en && fa.en.indexOf(d.en) >= 0) return true;
+        if (fa.attr && attrsOf(d.en).some(function (t) { return fa.attr.indexOf(t) >= 0; })) return true;
+        return false;
+      });
+      if (hit.length) food.push({ text: fa.text, drugs: hit.map(function (d) { return d.ko || d.en; }) });
+    });
+    return { pgx: pgx, food: food };
+  }
+
+  // ── 고령(65+) 노인주의 : DUR 노인주의 공식 문구 ──
+  function evalElderly(resolved) {
+    var out = [];
+    resolved.filter(function (d) { return d.ok; }).forEach(function (d) {
+      var e = D.elderly_caution && D.elderly_caution[d.en];
+      if (e) out.push({ drug: d.ko || d.en, text: (e.text || '').replace(/\s+$/, '') });
+    });
+    return out;
+  }
+
+  // ── 메인 ──
+  function reviewInteractions(items, context) {
+    context = context || {};
+    // items: 문자열 또는 이미 해석된 약물객체(.en 보유) 혼용 허용
+    var resolved = items.map(function (it) {
+      return (it && typeof it === 'object' && 'en' in it) ? it : resolve(it);
+    });
+    var ok = resolved.filter(function (d) { return d.ok; });
+    var pairFindings = [];
+    for (var i = 0; i < ok.length; i++) {
+      for (var j = i + 1; j < ok.length; j++) {
+        var fs = evalPair(ok[i], ok[j]);
+        if (fs.length) {
+          fs.sort(function (a, b) { return sevWeight(a.sev) - sevWeight(b.sev); });
+          pairFindings.push({ a: ok[i], b: ok[j], findings: fs,
+            topSev: fs.length ? fs[0].sev : 'info' });
+        }
+      }
+    }
+    pairFindings.sort(function (a, b) { return sevWeight(a.topSev) - sevWeight(b.topSev); });
+    var g = evalGlobalPD(resolved);
+    g.pd.sort(function (a, b) { return sevWeight(a.sev) - sevWeight(b.sev); });
+    var info = drugInfo(resolved);
+    var elderly = context.elderly ? evalElderly(resolved) : [];
+    return { resolved: resolved, pairs: pairFindings, global: g.pd,
+      acbTotal: g.acbTotal, acbList: g.acbList, pgx: info.pgx, food: info.food,
+      elderly: elderly };
+  }
+
+  var api = { setData: setData, resolve: resolve, expandInput: expandInput, suggest: suggest,
+    reviewInteractions: reviewInteractions, sevWeight: sevWeight };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  global.IXENGINE = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function(){
+  var D = window.IXDATA;
+  if(!D){ document.getElementById('results').innerHTML='<div class="warn">데이터 파일(_data/drug_interaction_data.js)을 불러오지 못했습니다.</div>'; return; }
+  IXENGINE.setData(D);
+  document.getElementById('ver').textContent = 'v'+(D.meta&&D.meta.version||'1.0');
+
+  var drugs = [];               // {input, en, ko, ok, fuzzy}
+  var input = document.getElementById('drug');
+  var ac = document.getElementById('ac');
+  var chipsEl = document.getElementById('chips');
+  var acItems = [], acSel = -1;
+
+  function esc(s){ return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function renderChips(){
+    chipsEl.innerHTML = drugs.map(function(d,i){
+      if(!d.ok) return '<span class="chip miss">'+esc(d.input)+' <span class="en">미매칭</span><button data-i="'+i+'">×</button></span>';
+      return '<span class="chip">'+esc(d.ko||d.en)+' <span class="en">'+esc(d.en)+'</span>'
+        +(d.via?' <span class="fz" style="color:var(--purple);border-color:#c9c0e0">'+esc(d.via)+'</span>':'')
+        +(d.fuzzy&&!d.via?' <span class="fz">유사</span>':'')
+        +'<button data-i="'+i+'">×</button></span>';
+    }).join('');
+  }
+  chipsEl.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    drugs.splice(+b.dataset.i,1); renderChips();
+  });
+
+  function pushDrug(d){
+    if(d.ok && drugs.some(function(x){return x.en===d.en;})) return;
+    drugs.push(d);
+  }
+  // item(자동완성 선택) 또는 문자열 입력 → 성분(복합제는 분해)으로 추가
+  function addDrug(input, item){
+    var parts;
+    if(item){
+      parts = item.combo
+        ? item.ens.map(function(en){ return {input:item.name, en:en, ko:D.en2ko[en]||'', ok:true, fuzzy:false, via:item.name}; })
+        : [{input:item.name, en:item.en, ko:D.en2ko[item.en]||'', ok:true, fuzzy:false, via:null}];
+    } else {
+      parts = IXENGINE.expandInput(input);
+    }
+    parts.forEach(pushDrug);
+    renderChips();
+  }
+
+  // 자동완성
+  function closeAc(){ ac.classList.remove('open'); ac.innerHTML=''; acItems=[]; acSel=-1; }
+  function showAc(){
+    var q = input.value.trim();
+    if(q.length<1){ closeAc(); return; }
+    acItems = IXENGINE.suggest(q, 12);
+    if(!acItems.length){ ac.innerHTML='<div class="item" style="color:var(--muted);cursor:default">일치하는 약이 없습니다 — Enter로 그대로 추가</div>'; ac.classList.add('open'); return; }
+    ac.innerHTML = acItems.map(function(it,i){
+      var right = it.combo
+        ? '<span style="color:var(--purple);font-weight:600">복합제</span> · '+esc(it.ko)
+        : esc(it.ko&&it.ko!==it.name?it.ko+' · ':'')+esc(it.en);
+      return '<div class="item'+(i===acSel?' sel':'')+'" data-i="'+i+'"><span>'+esc(it.name)+'</span><span class="en">'+right+'</span></div>';
+    }).join('');
+    ac.classList.add('open');
+  }
+  input.addEventListener('input', function(){ acSel=-1; showAc(); });
+  input.addEventListener('keydown', function(e){
+    if(!ac.classList.contains('open')){ if(e.key==='Enter'){ commit(); } return; }
+    if(e.key==='ArrowDown'){ e.preventDefault(); acSel=Math.min(acItems.length-1,acSel+1); showAc(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); acSel=Math.max(0,acSel-1); showAc(); }
+    else if(e.key==='Enter'){ e.preventDefault(); commit(); }
+    else if(e.key==='Escape'){ closeAc(); }
+  });
+  function commit(){
+    var q=input.value.trim(); if(!q) return;
+    if(acSel>=0 && acItems[acSel]){ addDrug(null, acItems[acSel]); }
+    else if(acItems.length){ addDrug(null, acItems[0]); }
+    else { addDrug(q); }
+    input.value=''; closeAc(); input.focus();
+  }
+  ac.addEventListener('click', function(e){
+    var it=e.target.closest('.item'); if(!it||it.dataset.i===undefined) return;
+    addDrug(null, acItems[+it.dataset.i]); input.value=''; closeAc(); input.focus();
+  });
+  document.addEventListener('click', function(e){ if(!e.target.closest('.inputrow')) closeAc(); });
+
+  // 예시/버튼
+  document.querySelectorAll('.examples a').forEach(function(a){
+    a.addEventListener('click', function(){
+      drugs=[]; a.dataset.ex.split(',').forEach(function(n){ addDrug(n.trim()); }); renderChips(); run();
+    });
+  });
+  document.getElementById('clear').addEventListener('click', function(){
+    drugs=[]; renderChips(); document.getElementById('results').innerHTML=''; document.getElementById('legendPanel').style.display='none';
+  });
+  document.getElementById('run').addEventListener('click', run);
+
+  var SEV_KO={contra:'병용금기',high:'고위험',moderate:'중등도',low:'낮음',info:'정보'};
+  function sevClass(s){ return s; }
+
+  function badge(cls,txt){ return '<span class="badge '+cls+'">'+txt+'</span>'; }
+  function refsHtml(refs){
+    refs=(refs||[]).filter(function(r){return r;});
+    if(!refs.length) return '';
+    return '<div class="refs">근거: '+refs.map(function(r){return '<span>'+esc(r)+'</span>';}).join('')+'</div>';
+  }
+
+  function findingHtml(f){
+    var h='<div class="finding">';
+    h+='<div class="ftitle">'+badge('b-layer lay-'+f.layer,f.layer)+badge('b-conf-'+f.conf,f.conf)+badge('b-sev-'+f.sev,SEV_KO[f.sev])+'<span>'+f.title+'</span></div>';
+    h+='<div class="fdetail">'+f.detail+'</div>';
+    if(f.snippet) h+='<div class="snippet"><span class="lbl">허가사항 상호작용 원문</span>'+esc(f.snippet)+'</div>';
+    if(f.pt) h+='<div class="ptbox"><span class="lbl">환자 안내</span>'+f.pt+'</div>';
+    h+=refsHtml(f.refs);
+    return h+'</div>';
+  }
+
+  function run(){
+    if(drugs.length<1){ document.getElementById('results').innerHTML='<div class="warn">약을 1개 이상 입력하세요.</div>'; return; }
+    var elderlyOn = document.getElementById('ctxElderly').checked;
+    var r = IXENGINE.reviewInteractions(drugs, { elderly: elderlyOn });
+    // resolved 동기화(칩에 fuzzy/via 반영)
+    drugs = r.resolved; renderChips();
+    var out='';
+
+    // 요약
+    var cnt={contra:0,high:0,moderate:0,low:0};
+    r.pairs.forEach(function(p){ p.findings.forEach(function(f){ if(cnt[f.sev]!=null)cnt[f.sev]++; }); });
+    r.global.forEach(function(f){ if(cnt[f.sev]!=null)cnt[f.sev]++; });
+    out+='<div class="panel"><div class="summary">'
+      +'<div class="stat contra"><div class="n">'+cnt.contra+'</div><div class="l">병용금기</div></div>'
+      +'<div class="stat high"><div class="n">'+cnt.high+'</div><div class="l">고위험</div></div>'
+      +'<div class="stat mod"><div class="n">'+cnt.moderate+'</div><div class="l">중등도</div></div>'
+      +'<div class="stat"><div class="n">'+r.pairs.length+'</div><div class="l">상호작용 약물쌍</div></div>'
+      +'<div class="stat acb"><div class="n">'+r.acbTotal+'</div><div class="l">항콜린부담(ACB)</div></div>'
+      +'</div>';
+    var miss=r.resolved.filter(function(d){return !d.ok;});
+    if(miss.length) out+='<div class="warn" style="margin:14px 0 0">⚠ 매칭되지 않은 입력: <b>'+miss.map(function(d){return esc(d.input);}).join(', ')+'</b> — 성분명/제품명을 확인하거나 자동완성에서 선택하세요.</div>';
+    var fz=r.resolved.filter(function(d){return d.ok&&d.fuzzy;});
+    if(fz.length) out+='<div class="warn" style="margin:14px 0 0">유사매칭(부분일치)으로 해석된 입력: <b>'+fz.map(function(d){return esc(d.input)+'→'+esc(d.ko||d.en);}).join(', ')+'</b> — 의도한 성분이 맞는지 확인하세요.</div>';
+    out+='</div>';
+
+    // 약물쌍
+    out+='<div class="section-title">약물쌍 상호작용 ('+r.pairs.length+'건)</div>';
+    if(!r.pairs.length) out+='<div class="empty">입력한 약물 사이에서 발견된 쌍별 상호작용이 없습니다. (설명서 매칭은 등재 품목 범위에 한합니다)</div>';
+    r.pairs.forEach(function(p){
+      out+='<div class="pair '+sevClass(p.topSev)+'"><div class="head">'
+        +badge('b-sev-'+p.topSev,SEV_KO[p.topSev])
+        +'<span class="names">'+esc(p.a.ko||p.a.en)+'<span class="x">×</span>'+esc(p.b.ko||p.b.en)+'</span></div>';
+      p.findings.forEach(function(f){ out+=findingHtml(f); });
+      out+='</div>';
+    });
+
+    // 약력학(전체)
+    out+='<div class="section-title">전체 병용 시 약력학·누적 위험 ('+r.global.length+'건)</div>';
+    if(!r.global.length) out+='<div class="empty">부작용·작용 상가로 인한 전체 병용 경고가 없습니다.</div>';
+    r.global.forEach(function(f){
+      out+='<div class="pair '+sevClass(f.sev)+'"><div class="head">'
+        +badge('b-sev-'+f.sev,SEV_KO[f.sev])
+        +'<span class="names">'+esc(f.title)+'</span></div>'
+        +'<div class="finding"><div class="fdetail">'+f.detail+'</div>'
+        +(f.drugs&&f.drugs.length?'<div class="refs" style="margin-top:8px">관련 약물: <b style="color:var(--ink)">'+f.drugs.map(esc).join(', ')+'</b></div>':'')
+        +(f.pt?'<div class="ptbox"><span class="lbl">환자 안내</span>'+f.pt+'</div>':'')
+        +refsHtml(f.refs)+'</div></div>';
+    });
+
+    // 고령(65+) 노인주의 — DUR 노인주의
+    if(elderlyOn){
+      out+='<div class="section-title">고령(65세 이상) 주의 — DUR 노인주의 ('+(r.elderly?r.elderly.length:0)+'건)</div>';
+      if(!r.elderly||!r.elderly.length){
+        out+='<div class="empty">입력한 약물 중 식약처 DUR 노인주의 목록에 해당하는 약물이 없습니다. (목록 외 약물도 고령에서는 일반적 주의가 필요할 수 있습니다)</div>';
+      } else {
+        r.elderly.forEach(function(e){
+          out+='<div class="eldcard"><span class="who">'+esc(e.drug)+'</span> — '+esc(e.text)+'</div>';
+        });
+      }
+    }
+
+    // 음식·생활 주의
+    if(r.food&&r.food.length){
+      out+='<div class="section-title">음식·생활 주의 ('+r.food.length+'건)</div>';
+      r.food.forEach(function(fa){
+        out+='<div class="infocard"><span class="who">'+esc(fa.drugs.join(', '))+'</span> — '+fa.text+'</div>';
+      });
+    }
+
+    // 약물유전형(PGx) 참고
+    if(r.pgx&&r.pgx.length){
+      out+='<div class="section-title">약물유전형(PGx) 참고 ('+r.pgx.length+'건)</div>'
+        +'<div class="empty" style="margin-bottom:10px">유전형에 따라 효과·부작용이 달라질 수 있는 약물입니다(정보성 — 필요 시 검사 고려).</div>';
+      r.pgx.forEach(function(g){
+        out+='<div class="infocard"><span class="gene">'+esc(g.gene)+'</span><span class="who">'+esc(g.drug)+'</span><div style="margin-top:4px;color:#3f3d37">'+esc(g.note)+'</div></div>';
+      });
+    }
+
+    document.getElementById('results').innerHTML=out;
+    document.getElementById('legendPanel').style.display='block';
+    document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  // ── OCR 사진 입력 ──
+  var ocrfile=document.getElementById('ocrfile'), ocrbox=document.getElementById('ocrbox'),
+      ocrstatus=document.getElementById('ocrstatus'), ocrthumb=document.getElementById('ocrthumb'),
+      ocrcands=document.getElementById('ocrcands'), ocrraw=document.getElementById('ocrraw'),
+      ocrrawwrap=document.getElementById('ocrrawwrap');
+  function ocrStat(t){ ocrstatus.innerHTML=t; }
+  function loadTesseract(cb){
+    if(window.Tesseract) return cb(true);
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload=function(){ cb(!!window.Tesseract); };
+    s.onerror=function(){ cb(false); };
+    document.head.appendChild(s);
+  }
+  ocrfile.addEventListener('change', function(){
+    var file=ocrfile.files&&ocrfile.files[0]; if(!file) return;
+    ocrbox.style.display='block'; ocrcands.innerHTML=''; ocrrawwrap.style.display='none';
+    var url=URL.createObjectURL(file);
+    ocrthumb.src=url; ocrthumb.style.display='block';
+    ocrStat('문자 인식 준비 중… (처음엔 인식엔진 다운로드로 시간이 걸릴 수 있어요)');
+    loadTesseract(function(ok){
+      if(!ok){ ocrStat('⚠ 문자인식 엔진을 불러오지 못했습니다(오프라인일 수 있어요). 아래 입력창에 직접 입력해 주세요.'); return; }
+      ocrStat('문자 인식 중… 0%');
+      window.Tesseract.recognize(file, 'kor+eng', { logger:function(m){
+        if(m.status==='recognizing text') ocrStat('문자 인식 중… '+Math.round((m.progress||0)*100)+'%');
+      }}).then(function(res){
+        var text=(res&&res.data&&res.data.text)||'';
+        ocrraw.value=text; ocrrawwrap.style.display='block';
+        scanText(text);
+      }).catch(function(e){
+        ocrStat('⚠ 인식 실패. 아래 입력창에 직접 입력해 주세요.');
+      });
+    });
+  });
+  document.getElementById('ocrrescan').addEventListener('click', function(){ scanText(ocrraw.value); });
+
+  // 토큰에서 매칭 시도할 후보 형태들(용량·제형어 제거 포함)
+  function candForms(w){
+    var forms=[w];
+    var ko=(w.match(/^[가-힣]+/)||[])[0];
+    if(ko && ko!==w) forms.push(ko);
+    var base=(ko||w).replace(/(이알서방정|서방캡슐|서방정|장용정|연질캡슐|경질캡슐|캡슐|정제|정|주사액|주사|주|시럽|현탁액|건조시럽|액|과립|산|점안액|점안|연고|크림|패치|겔)$/,'');
+    if(base.length>=2 && forms.indexOf(base)<0) forms.push(base);
+    var en=(w.match(/[A-Za-z]{4,}/)||[])[0];
+    if(en && forms.indexOf(en)<0) forms.push(en);
+    return forms;
+  }
+  function scanText(text){
+    var tokens={}, order=[];
+    (text||'').split(/[\s,·。、\/\\|()\[\]{}<>:;=]+/).forEach(function(w){
+      w=w.replace(/[^가-힣A-Za-z0-9]/g,'').trim();
+      if(w.length<2) return;
+      if(!tokens[w]){ tokens[w]=1; order.push(w); }
+    });
+    var found={}, cands=[];
+    order.forEach(function(w){
+      var forms=candForms(w), picked=null, usedForm=null;
+      for(var fi=0; fi<forms.length && !picked; fi++){
+        var form=forms[fi], isKo=/[가-힣]/.test(form);
+        if(isKo && form.length<2) continue;
+        if(!isKo && form.length<4) continue;
+        var sug=IXENGINE.suggest(form, 1);
+        if(!sug.length) continue;
+        var s=sug[0];
+        if(s.name.indexOf(form)<0 && form.indexOf(s.name)<0) continue;
+        picked=s; usedForm=form;
+      }
+      if(!picked) return;
+      var key=picked.combo?('C:'+picked.ens.join(',')):picked.en;
+      if(found[key]) return; found[key]=1;
+      cands.push({label:(picked.combo?picked.ko:(picked.ko||picked.en)), item:picked, token:w});
+    });
+    if(!cands.length){ ocrStat('약 이름을 자동으로 찾지 못했습니다. 원문을 확인·수정하거나 입력창에 직접 입력하세요.'); ocrcands.innerHTML=''; return; }
+    ocrStat('인식된 약 후보 <b>'+cands.length+'개</b> — 눌러서 추가하세요(잘못된 건 무시).');
+    ocrcands.innerHTML=cands.map(function(c,i){
+      return '<span class="ocr-cand" data-i="'+i+'"><span class="plus">＋</span>'+esc(c.label)
+        +' <span style="color:var(--muted);font-size:11px">('+esc(c.token)+')</span></span>';
+    }).join('');
+    ocrcands.querySelectorAll('.ocr-cand').forEach(function(el){
+      el.addEventListener('click', function(){
+        if(el.classList.contains('added')) return;
+        addDrug(null, cands[+el.dataset.i].item);
+        el.classList.add('added');
+      });
+    });
+  }
+
+  input.focus();
+})();
+</script>
+</body>
+</html>
